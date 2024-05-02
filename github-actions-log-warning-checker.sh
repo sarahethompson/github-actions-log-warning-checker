@@ -8,7 +8,7 @@
 # Step 2: ./github-actions-log-warning-checker.sh repos.csv output.csv
 
 WORKFLOW_RUNS_TO_CHECK=2
-WARNING_LOG_MESSAGES=("deprecated and will be disabled soon" "Node.js 12 actions are deprecated")
+WARNING_LOG_MESSAGES=("Node.js 16 actions are deprecated")
 
 if [ $# -lt "2" ]; then
     echo "Usage: $0 <repo_filename> <output_filename>"
@@ -29,7 +29,7 @@ if [ -f "$output" ]; then
     mv $output "$output-$date.csv"
 fi
 
-echo "repo,workflow_name,workflow_url,finding,found_in_latest_workflow_run" > $output
+echo "repo,workflow_name,workflow_url,finding,found_in_latest_workflow_run,actions" > $output
 
 while read -r repofull ; 
 do
@@ -61,16 +61,23 @@ do
                     # determine if this is a deprecated workflow command or deprecated node12 action
                     case $warning_message in
                     "${WARNING_LOG_MESSAGES[0]}"*)
-                        FINDING="Workflow command"
-                        ;;
-                    "${WARNING_LOG_MESSAGES[1]}"*)
-                        FINDING="Node.js 12 action"
+                        FINDING="Node.js 16 action"
+                        #ACTION=$(echo "$run_output" | grep -oP'(?<=! Node.js 16 actions are deprecated. Please update the following actions to use Node.js 20: ).*')
+                        #grep -oP '(?<=! Node.js 16 actions are deprecated. Please update the following actions to use Node.js 20: ).*' file.txt
+                        ACTION=$(echo "$run_output" | grep -o '.*Please update the following actions to use Node.js 20.*\. ' | cut -f2- -d:)
+                        suffix=". For more information see: https://github.blog/changelog/2023-09-22-github-actions-transitioning-from-node-16-to-node-20/."
+                        #sed 's/\.$//'
+                        NL=$'\n'
+                        ACTION=${ACTION//$NL/,}
+                        ACTION=${ACTION%"$suffix"}
+                        ACTION=${ACTION//,/ }
+                        ACTION=${ACTION//. /}
                         ;;
                     esac
                     # find if this was found in the latest run or not
                     latest=$([ "$i" -eq 0 ] && echo "yes" || echo "no")
                     # print the results
-                    echo "$org/$repo,$workflow_name,$workflow_url,$FINDING,$latest" >> "$output"
+                    echo "$org/$repo,$workflow_name,$workflow_url,$FINDING,$latest,$ACTION" >> "$output"
                     break 2
                 fi
             done
